@@ -23,17 +23,20 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: ZIP-i özü aç
+      - name: Faylları topla (zip də, ayrı-ayrı fayllar da olar)
         run: |
-          ZIP=$(ls *.zip | head -n1)
-          mkdir www
-          unzip -q "$ZIP" -d www
-          if [ ! -f www/index.html ]; then
-            d=$(dirname "$(find www -name index.html | head -n1)")
-            mv "$d"/* www/
+          # kökdə index.html yoxdursa və zip varsa, zipi aç
+          if [ ! -f index.html ]; then
+            for z in ./*.zip; do [ -f "$z" ] && unzip -qo "$z" -d unz; done || true
           fi
-          if [ -d www/native ]; then mv www/native native; fi
-          ls www native
+          mkdir -p www/icons native
+          f() { find . -path ./.git -prune -o -path ./www -prune -o -path ./node_modules -prune -o -path ./android -prune -o -type f -name "$1" -print | head -n1; }
+          cp "$(f index.html)" www/index.html
+          cp "$(f manifest.webmanifest)" www/manifest.webmanifest
+          cp "$(f sw.js)" www/sw.js
+          for n in icon-192.png icon-512.png icon-maskable-512.png apple-touch-icon.png; do cp "$(f $n)" www/icons/$n; done
+          for j in MainActivity AlarmReceiver AlarmService AlarmPlugin AlarmScheduler BootReceiver; do cp "$(f $j.java)" native/$j.java; done
+          ls www www/icons native
 
       - name: Capacitor + Android layihəsi
         run: |
@@ -70,8 +73,8 @@ jobs:
 
           PY
           M=android/app/src/main/AndroidManifest.xml
-          sed -i 's#<application#<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>\n    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>\n    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>\n    <uses-permission android:name="android.permission.VIBRATE"/>\n    <uses-permission android:name="android.permission.WAKE_LOCK"/>\n    <application#' $M
-          sed -i 's#</application>#    <service android:name=".AlarmService" android:exported="false" android:foregroundServiceType="mediaPlayback"/>\n    <receiver android:name=".AlarmReceiver" android:exported="false"/>\n    </application>#' $M
+          sed -i 's#<application#<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>\n    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>\n    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n    <uses-permission android:name="android.permission.VIBRATE"/>\n    <uses-permission android:name="android.permission.WAKE_LOCK"/>\n    <application#' $M
+          sed -i 's#</application>#    <service android:name=".AlarmService" android:exported="false" android:foregroundServiceType="mediaPlayback"/>\n    <receiver android:name=".AlarmReceiver" android:exported="false"/>\n    <receiver android:name=".BootReceiver" android:exported="true"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/></intent-filter></receiver>\n    </application>#' $M
           cat $M
 
       - name: APK yığ
